@@ -16,7 +16,7 @@ reset()
 [EcoSeq, MseSeq, HindSeq] = ["GAATTC", "TTAA", "AAGCTT"]
 FileCnt = 0
 
-for IN in InFile: # in each file passed too sys.argv...
+for IN in InFile: # in each file passed to sys.argv...
     IN = open(InFile[FileCnt], 'r') # process each line
     for Seq in IN:
         Seq = Seq.strip('\n')
@@ -29,3 +29,5 @@ for IN in InFile: # in each file passed too sys.argv...
     print("In file %s there are:\n  %i total sequences\n  %i EcoRI cut sites\n  %i Mse1 cut sites\n  %i HindIII cut sites" %(InFile[FileCnt], SeqCnt, Eco, Mse, Hind)) # print summary once each file has processed
     FileCnt +=1 # allow for next file in InFile to be processed
     reset() # reset count variables for new file
+
+IN.close()
