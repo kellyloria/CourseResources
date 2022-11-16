@@ -27,7 +27,7 @@ for IN in InFile: # in each file passed to sys.argv...
         Seq = IN.readline()
         Seq = Seq.strip('\n')
         if len(re.findall("(AT){4,}", Seq)) > 0:
-            Indiv = Fasta + "," + Seq + "," + "\n"
+            Indiv = Fasta + "," + Seq + "," + "\n" # could easily modify this format towards fasta, tab delimited, no line breaks, etc.
             OUTat.write(Indiv)
             ATcnt += 1
         elif len(re.findall("(ATC){4,}", Seq)) > 0:
@@ -45,3 +45,4 @@ for IN in InFile: # in each file passed to sys.argv...
     OUTat.close()
     OUTatc.close()
     OUTga.close()
+
