@@ -1,0 +1,101 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Lab 2 - Autocorrelation
+author: "Seth Romero"
+date: "2023-02-01"
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, echo = TRUE, message = FALSE, fig.height = 6, fig.width = 10)
+```
+
+<hr>
+
+References for personal use...
+
++ `forecast`: [Documentation](https://www.rdocumentation.org/packages/forecast/versions/8.20) & [GitHub](https://github.com/robjhyndman/forecast)
++ `astsa`- Applied Statistical Time Series Analysis: [Documentation](https://www.rdocumentation.org/packages/astsa/versions/1.16) & [GitHub](https://github.com/nickpoison/astsa)
++ `stlplus` - Seasonal Decomposition of Time Series by `Loess`: [Documentation](https://www.rdocumentation.org/packages/stlplus/versions/0.5.1/topics/stlplus) & [GitHub](https://github.com/hafen/stlplus)
++ `tseries` - Time Series Analysis and Computational Finance: [Documentation](https://www.rdocumentation.org/packages/tseries/versions/0.10-52)
+
+<hr>
+
+Pull in Tucson, AZ PRISM data and convert minimum temps (`tmin_C`) to a timeseries object
+\vspace{5mm}
+
+```{r, fig.height = 5}
+library(forecast)
+
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/")
+
+tucsonPRISM <- read.csv("tucson_prism_monthly.csv")
+tmax_ts <- ts(tucsonPRISM$tmax_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
+tmin_ts <- ts(tucsonPRISM$tmin_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
+plot(tmin_ts, xlab = "Year", ylab = "Tmin (\u00B0C)")
+```
+
+
+***1. Decompose the time series using the decompose() function. Is there any clear trend in the minimum temperature time series? What does the seasonal signal look like? Would you get the same answer just by calculating the monthly means? Answer with a figure(s) and a few sentences of explanation. (Are you curious if the same trend shows up for tmax? Let me know if you look into it.)***
+
+There's clearly a long-term trend of increasing Tmin that becomes more pronounced around 1970.
+
+```{r}
+# trend does not vary substantially when considering signal multiplicative
+tmin_add <- decompose(tmin_ts, type = 'additive')
+# Looking at trend with 10-year moving average
+tmin_trend_ma12 <- ma(tmin_add$trend, order = 120, centre = TRUE)
+plot(tmin_add$trend, xlab = "Year", ylab = "Tmin (\u00B0C) trend")
+lines(tmin_trend_ma12, col="blue", lwd = 3)
+```
+
+The seasonal signal is as expected with rising temperatures in spring, a peak in July, and tapering in the fall.
+
+```{r, fig.height = 8}
+par(mar = c(5, 4, 0.2, 2.1))
+par(mfrow = c(2, 1))
+
+plot(tmin_add$seasonal, xlab = "Year", ylab = "Seasonal Signal of Tmin (\u00B0C)")
+plot(tmin_add$seasonal[1:12], type = "o", xlab = "Month", ylab = "Seasonal Signal of Tmin (\u00B0C)") 
+```
+
+Monthly means closely mirror the seasonal signal. However, this shows nothing about the interannual variation which includes some stochasticity and (in this case) a directional trend.
+
+```{r, fig.height = 5}
+monthly_means <- tapply(tmin_ts, cycle(tmin_ts), FUN = mean)
+plot(monthly_means, type = "o", xlab = "Month", ylab = "Monthly Means (Tmin \u00B0C)")
+```
+
+Interestingly, the trend for Tmax is not as strong as the trend for Tmin. This seems to match global trends of warming night temps outpacing warming day temps. My loose understanding is that cloud cover is increasing in *most* places (possibly due to greater water holding capacity of a warmed atmosphere?) which has a cooling effect during the day (thereby counteracting warming) and a warming effect at night through insulation (thereby exacerbating warming).
+
+```{r}
+tmax_add <- decompose(tmax_ts, type = 'additive')
+tmax_trend_ma12 <- ma(tmax_add$trend, order = 120, centre = TRUE)
+plot(tmax_add$trend, xlab = "Year", ylab = "Tmax (\u00B0C) trend")
+lines(tmax_trend_ma12, col="blue", lwd = 3)
+```
+
+***2. Create lag plots for the tmin data. Can you explain the circular patterns?***
+
+The circular patterns have to do with the circular nature of seasons. For instance, looking at 'lag 3', points near the (0,0) origin are your winter months. As you move clockwise around the 'circle' you are looking at late winter points (with temp<sub>t</sub> values slightly increasing, but temp<sub>t-3</sub> still low as these are early winter temps) moving into spring temps (with temp<sub>t</sub> increasing substantially, but temp<sub>t-3</sub> still low as late winter temps). Summer, like winter, has temperature stability over a 3-month period, so as you progress through the summer, temp<sub>t</sub> stays flat while the lag temps (temp<sub>t-3</sub>, late spring) continue to increase and approach the 1:1 line. This same pattern but mirrored (because of dropping temps and lag temps being warmer than current) occurs in the progression to fall and winter which completes the circular pattern. 
+
+This pattern of moving to and from the 1:1 line is the result of oscillations between early and late-season months differing and matching their 3-month lags, respectively. The circularity occurs because of the switch from increasing to decreasing temps that happens twice per year. These circular patterns are strongest around lag 3 and lag 9 because seasons (in a 4-season system) are 3 months long.
+
+```{r}
+lag.plot(tmin_ts, lags = 12, do.lines = FALSE)
+```
+
+***3. Is there autocorrelation? At what lags (in months)? Is there partial autocorrelation? At what lags? Include a figure(s) with an explanation.***
+
+Yes, there is autocorrelation. Without accounting for compounding effects (see ACF), the strongest autocorrelation appears to happen at the 1-month, 6-month, and 12-month lags.  However, when accounting for compounding (see PACF), the strongest autocorrelation is actually at the 1-month and 2-month lags. There's also relatively strong partial autocorrelation at the 10-month lag.
+
+The decrease in effect of the 6-month lag shows that seasonally-opposite months are related within a year (e.g. an overall warm year will probably have both higher winter and summer temps), but this relationship is more an effect of relatedness between neighboring months and the progression of these neighboring months over a half-year period. 
+
+Unsurprisingly, the shortest lags have the highest partial autocorrelation, in part because there is simply less echoing that can occur in those intervals.  There is some effect of data resolution here. If days were the time interval, there would probably be stronger partial autocorrelation at the 1-day lag versus the 30-day lag because of the echoing effects that persist at smaller and smaller time intervals.
+
+The oddest pattern is perhaps the relatively strong partial autocorrelation at the 10-month lag. This suggests that there is some relationship between the beginning of seasons and the prior-year end of that season (if you think of seasons loosely as moving 3-month windows). I don't fully understand why this pattern would occur, but I imagine there is some meteorological explanation for it.
+
+```{r}
+tsdisplay(tmin_ts, lag.max = 12)
+```
