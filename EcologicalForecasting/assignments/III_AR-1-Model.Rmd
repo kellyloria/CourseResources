@@ -1,0 +1,175 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Lab 3 - AR(1) Model
+author: "Seth Romero"
+date: "2023-02-08"
+output: html_document
+---
+
+```{r, include = FALSE}
+options(width = 200)
+knitr::opts_chunk$set(include = TRUE, echo = TRUE, message = FALSE, fig.height = 6, fig.width = 10)
+```
+
+<hr>
+### Initial setup
+
+Pulling in NDVI data and excluding final 10 observations for later model testing. Taking some precautionary measures to ensure data is complete, consistent, and does not otherwise have abnormalities that would throw off model fit. Could nest variable calculations in the model itself, but there is some advantage to storing explicitly with the model's input dataframe to make downstream utilization or variable exploration easier.
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(ggplot2)
+
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/")
+
+# just being explicit about setting/ordering dates,
+# setting an ordered index,
+# and calculating time intervals between observations
+full_ts <- read.csv("../data/portal_timeseries.csv") %>%
+  mutate(date = mdy(date)) %>%
+  arrange(date) %>%
+  mutate(i = seq(1, length(.$NDVI)), 
+         date_intrvl = time_length((date - lag(date, n = 1)), unit = "days"))
+
+# calculating t-1 values,
+# removing final 10 dates
+obs_ts <- full_ts %>% 
+  mutate(prev_ndvi = lag(NDVI, n = 1),
+         prev_rain = lag(rain, n = 1)) %>%
+  filter(i <= (max(i) - 10))
+
+# Checking NA structure,
+# totals by column...
+colSums(is.na(obs_ts))
+
+# NAs should be at i=1 only, checking...
+obs_ts[which(is.na(obs_ts$prev_ndvi) | is.na(obs_ts$prev_rain) | is.na(obs_ts$date_intrvl)), ]
+
+# Checking for time interval consistency,
+# interval calculated in days...
+summary(obs_ts$date_intrvl)
+
+```
+
+<hr>
+
+***1. Fit a AR(1) model to the NDVI observed data using the lm function. You will need to use indexing to match up NDVI<sub>t</sub> with NDVI<sub>t-1</sub>.***
+
+```{r}
+# first model based on NDVI at t-1 only
+ndviM1 <- glm(NDVI ~ prev_ndvi,
+              data = obs_ts)
+
+summary(ndviM1)
+
+```
+
+<hr>
+
+***2.Create a function to forecast the NDVI, and forecast the 10 months of the NDVI data that we witheld, treating the last observed value as your initial condition. Plot the forecast for the next ten months along points for the withheld data. This function will is very similar to logistic growth function we built in lab 1. You can extract the model parameters using model$coefficients.***
+
+```{r}
+betasM1 <- ndviM1$coefficients
+betasM1
+
+# pulling final 11 dates and observed NDVI from initial data
+fullLen <- length(full_ts$i)
+obsFinal <- max(obs_ts$i)
+dateSubset <- full_ts$date[(fullLen - 10) : fullLen] # subtracting 10 leads to inclusion of 11 values
+obsNDVI <- full_ts$NDVI[(fullLen - 10) : fullLen]
+
+# initial NDVI value from which forecast is generated
+initNDVI <- obs_ts$NDVI[obsFinal]
+
+# function to calculate predicted values
+# ...could alter to take additional optional beta arguments for more flexible AR(p) handling
+# but not doing that for now...
+calc.pred1 <- function(init, x1, b0, b1){
+  vec = numeric(length(x1))
+  vec[1] = init
+  for (t in 2:length(x1)){
+    vec[t] = b0 + (b1 * vec[t-1])
+  }
+  return(vec)
+}
+
+# generate dataframe with forecasted and observed NDVI values
+pred_ts1 <- data.frame(date = dateSubset,
+                       ndvi_observed = obsNDVI,
+                       ndvi_predicted = NA) %>%
+  mutate(ndvi_predicted = calc.pred1(init = initNDVI, 
+                                     x1 = ndvi_predicted, 
+                                     b0 = betasM1[1], 
+                                     b1 = betasM1[2])) %>%
+  pivot_longer(cols = c("ndvi_observed", "ndvi_predicted"), names_to = "value_type", values_to = "NDVI") %>%
+  mutate(value_type = str_sub(value_type, 6))
+
+head(pred_ts1)
+
+ggplot(data = pred_ts1, aes(x = date, y = NDVI, color = value_type)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0, 0.4)) +
+  scale_x_date(breaks = "2 months",
+               date_labels = "%y %b") +
+  theme_bw()
+
+```
+
+<hr>
+
+***3. Repeat steps 1 & 2 using rain<sub>t-1</sub> along with NDVI<sub>t-1</sub> to explain NDVI<sub>t</sub>.***
+
+```{r}
+# second model based on NDVI at t-1 and rain at t-1
+ndviM2 <- glm(NDVI ~ prev_ndvi + prev_rain,
+              data = obs_ts)
+
+summary(ndviM2)
+
+betasM2 <- ndviM2$coefficients
+betasM2
+
+obsRain <- full_ts$rain[(fullLen - 10) : fullLen]
+
+calc.pred2 <- function(init, x1, x2, b0, b1, b2){
+  vec = numeric(length(x1))
+  vec[1] = init
+  for (t in 2:length(x1)){
+    vec[t] = b0 + (b1 * vec[t-1]) + (b2 * x2[t-1])
+  }
+  return(vec)
+}
+
+pred_ts2 <- data.frame(date = dateSubset,
+                       ndvi_observed = obsNDVI,
+                       rain = obsRain,
+                       ndvi_predicted = NA) %>%
+  mutate(ndvi_predicted = calc.pred2(init = initNDVI, 
+                                     x1 = ndvi_predicted,
+                                     x2 = rain,
+                                     b0 = betasM2[1], 
+                                     b1 = betasM2[2], 
+                                     b2 = betasM2[3])) %>%
+  pivot_longer(cols = c("ndvi_observed", "ndvi_predicted"), names_to = "value_type", values_to = "NDVI") %>%
+  mutate(value_type = str_sub(value_type, 6))
+
+head(pred_ts2)
+
+ggplot(data = pred_ts2, aes(x = date, y = NDVI, color = value_type)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0, 0.4)) +
+  scale_x_date(breaks = "2 months",
+               date_labels = "%y %b") +
+  theme_bw()
+
+```
+
+### **Radical.**
+
+<br>

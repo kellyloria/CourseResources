@@ -28,9 +28,9 @@ Pull in Tucson, AZ PRISM data and convert minimum temps (`tmin_C`) to a timeseri
 ```{r, fig.height = 5}
 library(forecast)
 
-setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/")
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/")
 
-tucsonPRISM <- read.csv("tucson_prism_monthly.csv")
+tucsonPRISM <- read.csv("../data/tucson_prism_monthly.csv")
 tmax_ts <- ts(tucsonPRISM$tmax_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
 tmin_ts <- ts(tucsonPRISM$tmin_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
 plot(tmin_ts, xlab = "Year", ylab = "Tmin (\u00B0C)")

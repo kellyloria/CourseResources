@@ -377,9 +377,9 @@ Finance: <a href="https://www.rdocumentation.org/packages/tseries/versions/0.10-
 (<code>tmin_C</code>) to a timeseries object </p>
 <pre class="r"><code>library(forecast)
 
-setwd(&quot;~/Documents/GitHub/CourseResources/EcologicalForecasting/&quot;)
+setwd(&quot;~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/&quot;)
 
-tucsonPRISM &lt;- read.csv(&quot;tucson_prism_monthly.csv&quot;)
+tucsonPRISM &lt;- read.csv(&quot;../data/tucson_prism_monthly.csv&quot;)
 tmax_ts &lt;- ts(tucsonPRISM$tmax_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
 tmin_ts &lt;- ts(tucsonPRISM$tmin_C, start = c(1895, 1), end = c(2018, 7), frequency = 12)
 plot(tmin_ts, xlab = &quot;Year&quot;, ylab = &quot;Tmin (\u00B0C)&quot;)</code></pre>
