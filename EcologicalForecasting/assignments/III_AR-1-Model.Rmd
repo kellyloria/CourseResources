@@ -70,7 +70,7 @@ summary(ndviM1)
 
 <hr>
 
-***2.Create a function to forecast the NDVI, and forecast the 10 months of the NDVI data that we witheld, treating the last observed value as your initial condition. Plot the forecast for the next ten months along points for the withheld data. This function will is very similar to logistic growth function we built in lab 1. You can extract the model parameters using model$coefficients.***
+***2. Create a function to forecast the NDVI, and forecast the 10 months of the NDVI data that we witheld, treating the last observed value as your initial condition. Plot the forecast for the next ten months along points for the withheld data. This function will is very similar to logistic growth function we built in lab 1. You can extract the model parameters using model$coefficients.***
 
 ```{r}
 betasM1 <- ndviM1$coefficients
