@@ -1,0 +1,189 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Lab 5 - Stan Model Intro
+author: "Seth Romero"
+date: "2023-02-20"
+output: html_document
+---
+
+```{r, include = FALSE}
+options(width = 200)
+knitr::opts_chunk$set(include = TRUE, echo = TRUE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 10)
+```
+
+```{r}
+library(rstan)
+library(shinystan)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(patchwork)
+library(kableExtra)
+
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/")
+```
+
+<hr style="border-width:4px">
+
+***1. Fit a AR(1) model to the NDVI observed data, including rain as a covariate, using Stan. Try both having the response variable and covariates as a vector as well as in a for loop.*** <br>
+
+Stan chunk #1
+
+```{stan, output.var = "stan1"}
+// stan model using vectors
+// compiled output as "stan1" using output.var =
+data {
+  int<lower=0> N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real<lower=0> sigma;
+}
+
+model {
+  y ~ normal(b0 + b1*x1 + b2*x2, sigma);
+}
+```
+
+Stan chunk #2
+
+```{stan, output.var = "stan2"}
+// same stan model using for loop
+// compiled output as "stan2" using output.var = 
+data {
+  int<lower=0> N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real<lower=0> sigma;
+}
+
+model {
+  for (i in 1:N) {
+    y[i] ~ normal(b0 + b1*x1[i] + b2*x2[i], sigma);
+  }
+}
+```
+
+R chunk to format data and fit `stan` models
+
+```{r, results = "hide"}
+obs_ts <- read.csv("../data/portal_timeseries.csv") %>%
+  mutate(date = mdy(date)) %>%
+  arrange(date) %>%
+  mutate(i = seq(1, length(.$NDVI)), 
+         prev_ndvi = lag(NDVI, n = 1),
+         prev_rain = lag(rain, n = 1)) %>%
+  filter(i <= (max(i) - 10)) %>%
+  na.omit()
+
+ndviData <- list(N = dim(obs_ts)[1], 
+                 y = obs_ts$NDVI, 
+                 x1 = obs_ts$prev_ndvi, 
+                 x2 = obs_ts$prev_rain)
+
+# sampling() effectively the same as stan(), but preferable in markdown workflow
+# allows us to use an object of class `stanmodel` which is created by the {stan} chunks
+# (chunks are running `rstan::stan_model(model_code=the_text)` in the background)
+M1stan <- sampling(stan1,
+                   data = ndviData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+M2stan <- sampling(stan2,
+                   data = ndviData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+```
+
+Just checking that fit with model defined by vectors (fit `M1ar1` via model `stan1`) is same as fit with model defined by for loop (fit `M2ar1` via model `stan2`)
+
+```{r}
+M1stan
+M2stan
+```
+
+Looks fine.
+
+<hr style="border-width:4px">
+
+***2. Create histograms for all parameter posterior distributions ($\beta_0$, $\beta_1$, $\beta_2$, and $\sigma$).***
+
+```{r, echo = FALSE}
+parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
+
+# with lapply(), builds list of ggplot objects (in this case histograms)
+build_hists <- function(parameters, column){
+  ggplot(parameters, aes_string(x = column)) +
+    geom_histogram(color = "#979494", fill = "#DFDFDF", bins = 20) +
+    geom_vline(xintercept = mean(parameters[, column]), linetype = "dashed", linewidth = 0.75, color = "#273485") +
+    ylab("Frequency") +
+    xlab(column) +
+    theme_classic()
+}
+
+# builds a multi-panel layout of ggplot objects stored in list
+# currently using default gridding from `patchwork`
+build_patchwork <- function(gglist){
+  mp_hists = gglist[[1]]
+  for (n in 2:length(gglist)) {
+    mp_hists = mp_hists + gglist[[n]]
+  }
+  return(mp_hists)
+}
+
+
+# generates histograms for M1 parameters
+histsM1 <- lapply(colnames(parsM1), build_hists, parameters = parsM1)
+build_patchwork(histsM1)
+
+```
+
+<hr style="border-width:4px">
+
+***3. How do the mean parameter estimates differ from the lm model?***
+
+```{r, include = FALSE}
+M3glm <- glm(NDVI ~ prev_ndvi + prev_rain,
+             data = obs_ts)
+
+pars_comparison <- data.frame(matrix(ncol = 5, nrow = 2))
+colnames(pars_comparison) <- c("model_type", "b0", "b1", "b2", "sigma")
+pars_comparison[1,1] <- "stan"
+pars_comparison[2,1] <- "lm"
+pars_comparison[2,2:4] <- M3glm$coefficients
+pars_comparison[2,5] <- sigma(M3glm)
+pars_comparison[1,2:5] <- c(mean(parsM1$b0), mean(parsM1$b1), mean(parsM1$b2), mean(parsM1$sigma))
+```
+
+```{r, echo = FALSE}
+kbl(pars_comparison,
+    col.names = c("model type", 
+                  "$\\beta_0$ (intercept)",
+                  "$\\beta_1$ (NDVI~t-1~)", 
+                  "$\\beta_2$ (rain~t-1~)", 
+                  "$\\sigma$"),
+    align = "ccccc",
+    digits = c(0, 4, 3, 6, 4),
+    format.args = list(scientific = TRUE),
+    escape = FALSE) %>%
+  kable_minimal()
+```
+
+
+As hoped, the two models give very similar estimates.
