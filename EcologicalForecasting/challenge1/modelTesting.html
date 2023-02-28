@@ -360,6 +360,69 @@ Challenge 1!</div></h1>
 
 
 <p>Just testing to see if this shows up…</p>
+<pre class="r"><code>library(rstan)
+library(shinystan)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(patchwork)
+library(kableExtra)
+
+# Seth&#39;s path while working...
+setwd(&quot;~/Documents/GitHub/CourseResources/EcologicalForecasting/challenge1/&quot;)
+
+# Kelly&#39;s path while working...
+# setwd(&quot;&quot;)</code></pre>
+<pre class="r"><code>full_ts &lt;- read.csv(&quot;../data/portal_timeseries.csv&quot;) %&gt;%
+  mutate(date = mdy(date)) %&gt;%
+  arrange(date) %&gt;%
+  mutate(i = seq(1, length(.$NDVI)), 
+         date_intrvl = time_length((date - lag(date, n = 1)), unit = &quot;days&quot;))
+
+obs_ts &lt;- full_ts %&gt;% 
+  mutate(prev_ndvi = lag(NDVI, n = 1),
+         prev_rain = lag(rain, n = 1)) %&gt;%
+  filter(i &lt;= (max(i) - 10)) %&gt;%
+  na.omit()</code></pre>
+<p>Example of a stan chunk. <code>output.var</code> is used to create
+the <code>stan</code> object that you can then reference in R
+chunks.</p>
+<pre class="stan"><code>data {
+  int&lt;lower=0&gt; N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real&lt;lower=0&gt; sigma;
+}
+
+model {
+  y ~ normal(b0 + b1*x1 + b2*x2, sigma);
+}</code></pre>
+<p>Note reference to <code>stan1</code> below… <br> Also have to use
+<code>sampling()</code> in this case as opposed to <code>stan()</code>
+(effectively the same, just uses a model object that is pre-compiled as
+opposed to a .stan file that needs compiling).</p>
+<pre class="r"><code>ndviData &lt;- list(N = dim(obs_ts)[1], 
+                 y = obs_ts$NDVI, 
+                 x1 = obs_ts$prev_ndvi, 
+                 x2 = obs_ts$prev_rain)
+
+M1stan &lt;- sampling(stan1,
+                   data = ndviData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+
+parsM1 &lt;- as.data.frame(rstan::extract(M1stan, c(&quot;b0&quot;, &quot;b1&quot;, &quot;b2&quot;, &quot;sigma&quot;)))</code></pre>
+<p>This works… <br> (Use <code>results = &quot;hide&quot;</code> to not show all
+the MCMC stuff)</p>
 
 
 
