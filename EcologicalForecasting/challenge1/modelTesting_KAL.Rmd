@@ -58,5 +58,103 @@ chart.Correlation(cov_dfc, histogram=TRUE, pch=19)
 ```
 ```{r}
 newdf<- left_join(data, cov_df, by=c("Date" = "Date"))
+
+full_ts <- newdf %>%
+  arrange(Date) %>%
+  mutate(i = seq(1, length(.$X11C)), 
+         date_intrvl = time_length((Date - lag(Date, n = 1)), unit = "days"))
+
+
+obs_ts <- full_ts %>% 
+  mutate(prev_SM = lag(X11C, n = 1)) 
+
+obs_ts=obs_ts[-1,]
+
 ```
 
+
+```{stan, output.var = "stan1"}
+data {
+  int<lower=0> N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real<lower=0> sigma;
+}
+
+model {
+  y ~ normal(b0 + b1*x1 + b2*x2, sigma);
+}
+```
+Note reference to `stan1` below...
+<br>
+Also have to use `sampling()` in this case as opposed to `stan()` (effectively the same, just uses a model object that is pre-compiled as opposed to a .stan file that needs compiling). 
+
+AR for previous weather station variables?
+
+```{r}
+modelData <- list(N = dim(obs_ts)[1], 
+                 y = obs_ts$X11C, 
+                 x1 = obs_ts$prev_SM, 
+                 x2 = obs_ts$Ppt_mm_Tot)
+
+M1stan <- sampling(stan1,
+                   data = modelData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+
+parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
+```
+
+
+This works...
+<br>
+(Use `results = "hide"` in chunk header to not show all the MCMC stuff)
+
+
+```{r}
+#
+FullTsLength <- length(obs_ts$X11C)
+# PredData <- full_ts[(FullTsLength-10): FullTsLength,]
+
+# Forecast with process variability
+PredOut1 <- matrix(NA, length(parsM1$b0), 10)
+for (p in 1:length(parsM1$b0)){
+  X11C = obs_ts$X11C[1]
+  for (t in 1:10) {
+    X11C = rnorm(1, parsM1$b0[p] + parsM1$b1[p]*X11C + parsM1$b2[p]*obs_ts$Ppt_mm_Tot[t], parsM1$sigma[p])
+    PredOut1[p,t] = X11C
+  }
+}
+
+PredOut1 <- as.data.frame(PredOut1)
+
+```
+```{r}
+# matplot(predout, type = 'l') # each color = pred for each month parm x month
+# flip the matrix
+matplot(t(PredOut1), type = 'l') 
+
+# quantify CI and level of uncertainty due to only parameter error
+meanP <- apply(PredOut1, 2, mean) # apply  mean across columns "2"
+Upper<- apply(PredOut1, 2, quantile, prob= .975) # CI using quantile (missing 2.5 above and bwlow)
+Lower <- apply(PredOut1, 2, quantile, prob= .025)
+sd<- apply(PredOut1, 2, sd)
+
+plot(meanP, type='l', ylim=c(0,0.4), ylab=c("mean parameter est."), xlab=c("month no."))
+lines(Upper, lty=2, col="goldenrod")
+lines(Lower, lty=2, col="goldenrod")
+points(obs_ts$X11C, col="darkgreen") 
+
+# coverage and RMSE to evaluate 
+
+
+
+```
