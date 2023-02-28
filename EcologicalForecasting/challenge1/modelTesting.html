@@ -418,11 +418,85 @@ M1stan &lt;- sampling(stan1,
                    data = ndviData,
                    chains = 3,
                    iter = 2000,
-                   warmup = 1000)
-
-parsM1 &lt;- as.data.frame(rstan::extract(M1stan, c(&quot;b0&quot;, &quot;b1&quot;, &quot;b2&quot;, &quot;sigma&quot;)))</code></pre>
-<p>This works… <br> (Use <code>results = &quot;hide&quot;</code> to not show all
-the MCMC stuff)</p>
+                   warmup = 1000)</code></pre>
+<pre><code>## 
+## SAMPLING FOR MODEL &#39;3ac5fadbab3286dd8ba729625c00eb6c&#39; NOW (CHAIN 1).
+## Chain 1: 
+## Chain 1: Gradient evaluation took 2.2e-05 seconds
+## Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.22 seconds.
+## Chain 1: Adjust your expectations accordingly!
+## Chain 1: 
+## Chain 1: 
+## Chain 1: Iteration:    1 / 2000 [  0%]  (Warmup)
+## Chain 1: Iteration:  200 / 2000 [ 10%]  (Warmup)
+## Chain 1: Iteration:  400 / 2000 [ 20%]  (Warmup)
+## Chain 1: Iteration:  600 / 2000 [ 30%]  (Warmup)
+## Chain 1: Iteration:  800 / 2000 [ 40%]  (Warmup)
+## Chain 1: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+## Chain 1: Iteration: 1001 / 2000 [ 50%]  (Sampling)
+## Chain 1: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+## Chain 1: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+## Chain 1: Iteration: 1600 / 2000 [ 80%]  (Sampling)
+## Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
+## Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
+## Chain 1: 
+## Chain 1:  Elapsed Time: 1.35411 seconds (Warm-up)
+## Chain 1:                1.07399 seconds (Sampling)
+## Chain 1:                2.4281 seconds (Total)
+## Chain 1: 
+## 
+## SAMPLING FOR MODEL &#39;3ac5fadbab3286dd8ba729625c00eb6c&#39; NOW (CHAIN 2).
+## Chain 2: 
+## Chain 2: Gradient evaluation took 1.6e-05 seconds
+## Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.16 seconds.
+## Chain 2: Adjust your expectations accordingly!
+## Chain 2: 
+## Chain 2: 
+## Chain 2: Iteration:    1 / 2000 [  0%]  (Warmup)
+## Chain 2: Iteration:  200 / 2000 [ 10%]  (Warmup)
+## Chain 2: Iteration:  400 / 2000 [ 20%]  (Warmup)
+## Chain 2: Iteration:  600 / 2000 [ 30%]  (Warmup)
+## Chain 2: Iteration:  800 / 2000 [ 40%]  (Warmup)
+## Chain 2: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+## Chain 2: Iteration: 1001 / 2000 [ 50%]  (Sampling)
+## Chain 2: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+## Chain 2: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+## Chain 2: Iteration: 1600 / 2000 [ 80%]  (Sampling)
+## Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
+## Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
+## Chain 2: 
+## Chain 2:  Elapsed Time: 1.61354 seconds (Warm-up)
+## Chain 2:                1.26576 seconds (Sampling)
+## Chain 2:                2.87929 seconds (Total)
+## Chain 2: 
+## 
+## SAMPLING FOR MODEL &#39;3ac5fadbab3286dd8ba729625c00eb6c&#39; NOW (CHAIN 3).
+## Chain 3: 
+## Chain 3: Gradient evaluation took 1.6e-05 seconds
+## Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.16 seconds.
+## Chain 3: Adjust your expectations accordingly!
+## Chain 3: 
+## Chain 3: 
+## Chain 3: Iteration:    1 / 2000 [  0%]  (Warmup)
+## Chain 3: Iteration:  200 / 2000 [ 10%]  (Warmup)
+## Chain 3: Iteration:  400 / 2000 [ 20%]  (Warmup)
+## Chain 3: Iteration:  600 / 2000 [ 30%]  (Warmup)
+## Chain 3: Iteration:  800 / 2000 [ 40%]  (Warmup)
+## Chain 3: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+## Chain 3: Iteration: 1001 / 2000 [ 50%]  (Sampling)
+## Chain 3: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+## Chain 3: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+## Chain 3: Iteration: 1600 / 2000 [ 80%]  (Sampling)
+## Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
+## Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
+## Chain 3: 
+## Chain 3:  Elapsed Time: 1.85537 seconds (Warm-up)
+## Chain 3:                1.4232 seconds (Sampling)
+## Chain 3:                3.27857 seconds (Total)
+## Chain 3:</code></pre>
+<pre class="r"><code>parsM1 &lt;- as.data.frame(rstan::extract(M1stan, c(&quot;b0&quot;, &quot;b1&quot;, &quot;b2&quot;, &quot;sigma&quot;)))</code></pre>
+<p>This works… <br> (Use <code>results = &quot;hide&quot;</code> in chunk header
+to not show all the MCMC stuff)</p>
 
 
 
