@@ -1,0 +1,225 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Lab 7 - Process Variability
+author: "Seth Romero"
+date: "2023-02-20"
+output: html_document
+---
+
+<style type="text/css">
+  body {
+    font-size: 11pt;
+    max-width: 800px;
+    margin: auto;
+  }
+</style>
+
+```{r, include = FALSE}
+options(width = 200)
+knitr::opts_chunk$set(include = FALSE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
+```
+
+```{r}
+library(rstan)
+library(shinystan)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(patchwork)
+
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/")
+```
+
+```{r}
+full_ts <- read.csv("../data/portal_timeseries.csv") %>%
+  mutate(date = mdy(date)) %>%
+  arrange(date) %>%
+  mutate(i = seq(1, length(.$NDVI)), 
+         date_intrvl = time_length((date - lag(date, n = 1)), unit = "days"))
+
+obs_ts <- full_ts %>% 
+  mutate(prev_ndvi = lag(NDVI, n = 1),
+         prev_rain = lag(rain, n = 1)) %>%
+  filter(i <= (max(i) - 10)) %>%
+  na.omit()
+
+```
+```{stan, output.var = "stan1"}
+data {
+  int<lower=0> N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real<lower=0> sigma;
+}
+
+model {
+  y ~ normal(b0 + b1*x1 + b2*x2, sigma);
+}
+```
+
+```{r}
+ndviData <- list(N = dim(obs_ts)[1], 
+                 y = obs_ts$NDVI, 
+                 x1 = obs_ts$prev_ndvi, 
+                 x2 = obs_ts$prev_rain)
+
+M1stan <- sampling(stan1,
+                   data = ndviData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+
+parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
+
+```
+
+<hr style="border-width:4px">
+
+**1. Add process variablity into the forecast we developed of mean NDVI last class and calculate 95% predictive intervals. Create a plot of the forecast timeseries with the overall mean and 95% credible intervals for the mean, 95% predictive intervals (process variability + parameter error), as well as the observed data.**
+
+```{r, include = TRUE}
+FullTsLength <- length(full_ts$NDVI)
+PredData <- full_ts[(FullTsLength-10): FullTsLength,]
+
+# First forecast without process variability
+PredOut1 <- matrix(NA, length(parsM1$b0), 10)
+for (p in 1:length(parsM1$b0)){
+  NDVI = PredData$NDVI[1]
+  for (t in 1:10){
+    NDVI = parsM1$b0[p] + parsM1$b1[p]*NDVI + parsM1$b2[p]*PredData$rain[t]
+    PredOut1[p,t] = NDVI
+  }
+}
+
+# Second forecast with process variability
+PredOut2 <- matrix(NA, length(parsM1$b0), 10)
+for (p in 1:length(parsM1$b0)){
+  NDVI = PredData$NDVI[1]
+  for (t in 1:10) {
+    NDVI = rnorm(1, parsM1$b0[p] + parsM1$b1[p]*NDVI + parsM1$b2[p]*PredData$rain[t], parsM1$sigma[p])
+    PredOut2[p,t] = NDVI
+  }
+}
+
+PredOut1 <- as.data.frame(PredOut1)
+PredOut2 <- as.data.frame(PredOut2)
+
+# Functionalizing the interval plot
+interval_plot <- function(mean, upper95, lower95){
+  PredCIntervals <- data.frame(matrix(ncol = 7, nrow = 10)) %>%
+    mutate(X1 = full_ts$date[(FullTsLength-9):FullTsLength],
+           X2 = mean,
+           X3 = upper95,
+           X4 = lower95,
+           X5 = full_ts$NDVI[(FullTsLength-9):FullTsLength],
+           X6 = upper95,
+           X7 = lower95) %>%
+    rename(Month = X1,
+           "Pred. Mean" = X2,
+           "Pred. Upper 95" = X3,
+           "Pred. Lower 95" = X4,
+           Observed = X5,
+           ribbonU = X6,
+           ribbonL = X7) %>%
+    pivot_longer(c(2:5), names_to = "Parameters", values_to = "NDVI") %>%
+    mutate(Parameters = factor(Parameters, levels = c("Observed", "Pred. Mean",
+                                                      "Pred. Upper 95", "Pred. Lower 95")))
+  ggplot(PredCIntervals, 
+         aes(x = Month, y = NDVI, 
+             linetype = Parameters, color = Parameters, shape = Parameters)) +
+    geom_line() + 
+    geom_point(data = subset(PredCIntervals, 
+                             Parameters == "Observed" | Parameters == "Pred. Mean")) +
+    scale_shape_manual(values = c(16, 1, NA, NA)) +
+    scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotted")) +
+    scale_color_manual(values = c("#166170", "#166170", "#616AA0", "#616AA0")) +
+    geom_ribbon(aes(x = Month, ymin = ribbonL, ymax = ribbonU), 
+                inherit.aes = FALSE, fill = "#616AA0", alpha = 0.2) +
+    scale_y_continuous(limits = c(0, NA)) +
+    scale_x_date(breaks = "2 months",
+                 date_labels = "%y %b") +
+    theme_bw()
+}
+
+MeanP2 <- apply(PredOut2, 2, mean)
+Upper2 <- apply(PredOut2, 2, quantile, prob = 0.975)
+Lower2 <- apply(PredOut2, 2, quantile, prob = 0.025)
+
+interval_plot(mean = MeanP2,
+              upper95 = Upper2,
+              lower95 = Lower2)
+```
+
+**How many points fall outside the full predictive interval? How many might we expect given that we are forecasting 10 years with a 95% interval?**
+
+1 out of the 10 points fall outside the predictive interval (the Sep. point is borderline, sometimes falling in/out depending on run of Bayesian model). We would expect 95 out of 100 forecasted points to fall within the 95% predictive interval, so this 9/10 is reasonable.
+<br>
+<br>
+**2. How would our predictive intervals look different if we assumed the model did not have a long-term equilibrium? Try this out by replacing $\beta_1$ with 1 in your forecast code and rerunning your forecast in question 1.**
+
+```{r, include = TRUE}
+PredOut3 <- matrix(NA, length(parsM1$b0), 10)
+for (p in 1:length(parsM1$b0)){
+  NDVI = PredData$NDVI[1]
+  for (t in 1:10) {
+    NDVI = rnorm(1, parsM1$b0[p] + 1*NDVI + parsM1$b2[p]*PredData$rain[t], parsM1$sigma[p])
+    PredOut3[p,t] = NDVI
+  }
+}
+
+PredOut3 <- as.data.frame(PredOut3)
+
+MeanP3 <- apply(PredOut3, 2, mean)
+Upper3 <- apply(PredOut3, 2, quantile, prob = 0.975)
+Lower3 <- apply(PredOut3, 2, quantile, prob = 0.025)
+
+interval_plot(mean = MeanP3,
+              upper95 = Upper3,
+              lower95 = Lower3)
+```
+
+**Why is this different from the results of question 1?**
+
+This forecast assumes NDVI is always building on the previous time period based on some addition of rain to the system. It does not account for the fact that that certain factors are always exerting downward pressure on NDVI (e.g. temperature or sunlight limits that would reduce plant productivity seasonally). These downward pressures are always working in combination with rain (an upward pressure) to equilibrate NDVI through time.
+<br>
+<br>
+**3. How would we expect the amount of parameter error relative to process variability to change as we collected more data?**
+
+Parameter error from process variability would decrease both from greater samplling of current variables and from the inclusionn of more explanatory parameters in the model fit. Process uncertainty represent true variability in our system, so more measurement of our system is going to going to reduce what is unexplained.
+<br>
+<br>
+**4. Now assume $\sigma$ represents observation uncertainty, rather then process uncertainty. How does this change the predictive intervals from question 2, and why? Try it out if you are not sure.**
+
+The predictive intervals should shrink if $\sigma$ is only observation uncertainty. Because process uncertainty is autoregressive, it is propagating through time leading to greater uncertainty as one moves forward in time. Observation uncertainty is 'consistent' error in that it occurs at each measurement point and is not compounding through time.
+
+```{r, include = TRUE}
+PredOut4 <- matrix(NA, length(parsM1$b0), 10)
+for (p in 1:length(parsM1$b0)){
+  NDVI = PredData$NDVI[1]
+  for (t in 1:10) {
+    NDVI = parsM1$b0[p] + 1*NDVI + parsM1$b2[p]*PredData$rain[t]
+    PredOut4[p,t] = rnorm(1, NDVI, parsM1$sigma[p])
+  }
+}
+
+PredOut4 <- as.data.frame(PredOut4)
+
+MeanP4 <- apply(PredOut4, 2, mean)
+Upper4 <- apply(PredOut4, 2, quantile, prob = 0.975)
+Lower4 <- apply(PredOut4, 2, quantile, prob = 0.025)
+
+interval_plot(mean = MeanP4,
+              upper95 = Upper4,
+              lower95 = Lower4)
+```
+
+Indeed, the predictive intervals have shrunk when only considering observational uncertainty.

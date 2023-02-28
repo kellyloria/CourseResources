@@ -1,18 +1,26 @@
 ---
 title:  |
   | Ecological Forecasting
-  | Lab 5 - Stan Model Intro
+  | Lab 5 - Stan Model Pt. II
 author: "Seth Romero"
 date: "2023-02-20"
 output: html_document
 ---
 
+<style type="text/css">
+  body {
+    font-size: 11pt;
+    max-width: 800px;
+    margin: auto;
+  }
+</style>
+
 ```{r, include = FALSE}
 options(width = 200)
-knitr::opts_chunk$set(include = FALSE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 10)
+knitr::opts_chunk$set(include = FALSE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
 ```
 
-```{r}
+```{r, include = FALSE}
 library(rstan)
 library(shinystan)
 library(dplyr)
@@ -25,7 +33,7 @@ library(kableExtra)
 setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/assignments/")
 ```
 
-```{stan, output.var = "stan1"}
+```{stan, output.var = "stan1", include = TRUE}
 // stan model using vectors
 // compiled output as "stan1" using output.var =
 data {
@@ -45,6 +53,7 @@ parameters {
 model {
   y ~ normal(b0 + b1*x1 + b2*x2, sigma);
 }
+
 ```
 
 ```{r, include = TRUE, results = "hide"}
@@ -54,31 +63,33 @@ full_ts <- read.csv("../data/portal_timeseries.csv") %>%
   mutate(i = seq(1, length(.$NDVI)), 
          date_intrvl = time_length((date - lag(date, n = 1)), unit = "days"))
 
-# calculating t-1 values,
-# removing final 10 dates
 obs_ts <- full_ts %>% 
   mutate(prev_ndvi = lag(NDVI, n = 1),
          prev_rain = lag(rain, n = 1)) %>%
-  filter(i <= (max(i) - 10))
+  filter(i <= (max(i) - 10)) %>%
+  na.omit()
 
 ndviData <- list(N = dim(obs_ts)[1], 
                  y = obs_ts$NDVI, 
                  x1 = obs_ts$prev_ndvi, 
                  x2 = obs_ts$prev_rain)
 
-# sampling() effectively the same as stan(), but preferable in markdown workflow
-# allows us to use an object of class `stanmodel` which is created by the {stan} chunks
-# (chunks are running `rstan::stan_model(model_code=the_text)` in the background)
 M1stan <- sampling(stan1,
                    data = ndviData,
                    chains = 3,
                    iter = 2000,
                    warmup = 1000)
+
+parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
 ```
 
-```{r}
-n <- length(full_ts$NDVI)
-PredData <- full_ts[(n-10): n,]
+<hr style="border-width:4px">
+
+***1. Develop a forecast for the mean NDVI for the last 10 months, assuming that the rainfall is known. Include a plot of the forecast timeseries with the mean (i.e. the mean of the mean NDVI) and 95% credible intervals for the mean as well as the observed data.***
+
+```{r, include = TRUE}
+FullTsLength <- length(full_ts$NDVI)
+PredData <- full_ts[(FullTsLength-10): FullTsLength,]
 PredOut <- matrix(NA, length(parsM1$b0), 10)
 
 for (p in 1:length(parsM1$b0)){
@@ -89,56 +100,71 @@ for (p in 1:length(parsM1$b0)){
   }
 }
 
-po <- as.data.frame(PredOut)
+PredOut <- as.data.frame(PredOut)
 
-matplot(t(PredOut), type = 'l')
-
+# '2' argument is for 'margin' implying function is calculated on columns
+# ('1' would apply to rows)
 MeanP <- apply(PredOut, 2, mean)
 Upper <- apply(PredOut, 2, quantile, prob = 0.975)
 Lower <- apply(PredOut, 2, quantile, prob = 0.025)
 
-stuff <- data.frame(matrix(ncol = 4, nrow = 10))
-stuff[, 2] <- MeanP
-stuff[, 3] <- Upper
-stuff[, 4] <- Lower
-stuff[, 1] <- seq(1:10)
+PredCIntervals <- data.frame(matrix(ncol = 7, nrow = 10)) %>%
+  mutate(X1 = full_ts$date[(FullTsLength-9):FullTsLength],
+         X2 = MeanP,
+         X3 = Upper,
+         X4 = Lower,
+         X5 = full_ts$NDVI[(FullTsLength-9):FullTsLength],
+         X6 = Upper,
+         X7 = Lower) %>%
+  rename(Month = X1,
+         "Pred. Mean" = X2,
+         "Pred. Upper 95" = X3,
+         "Pred. Lower 95" = X4,
+         Observed = X5,
+         ribbonU = X6,
+         ribbonL = X7) %>%
+  pivot_longer(c(2:5), names_to = "Parameters", values_to = "NDVI") %>%
+  mutate(Parameters = factor(Parameters, levels = c("Observed", "Pred. Mean",
+                                                    "Pred. Upper 95", "Pred. Lower 95")))
 
-colnames(stuff) <- c("month", "mean", "upper", "lower")
+ggplot(PredCIntervals, 
+       aes(x = Month, y = NDVI, 
+           linetype = Parameters, color = Parameters, shape = Parameters)) +
+  geom_line() + 
+  geom_point(data = subset(PredCIntervals, 
+                           Parameters == "Observed" | Parameters == "Pred. Mean")) +
+  scale_shape_manual(values = c(16, 1, NA, NA)) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotted")) +
+  scale_color_manual(values = c("#166170", "#166170", "#616AA0", "#616AA0")) +
+  geom_ribbon(aes(x = Month, ymin = ribbonL, ymax = ribbonU), 
+              inherit.aes = FALSE, fill = "#616AA0", alpha = 0.2) +
+  scale_y_continuous(limits = c(0.1, 0.4)) +
+  scale_x_date(breaks = "2 months",
+               date_labels = "%y %b") +
+  theme_bw()
 ```
 
-```{r, echo = FALSE}
-parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
-
-# with lapply(), builds list of ggplot objects (in this case histograms)
-build_hists <- function(parameters, column){
-  ggplot(parameters, aes_string(x = column)) +
-    geom_histogram(color = "#979494", fill = "#DFDFDF", bins = 20) +
-    geom_vline(xintercept = mean(parameters[, column]), linetype = "dashed", linewidth = 0.75, color = "#273485") +
-    ylab("Frequency") +
-    xlab(column) +
-    theme_classic()
-}
-
-# builds a multi-panel layout of ggplot objects stored in list
-# currently using default gridding from `patchwork`
-build_patchwork <- function(gglist){
-  mp_hists = gglist[[1]]
-  for (n in 2:length(gglist)) {
-    mp_hists = mp_hists + gglist[[n]]
-  }
-  return(mp_hists)
-}
-```
-
-```{r}
-histsNDVI <- lapply(colnames(po), build_hists, parameters = po)
-build_patchwork(histsNDVI)
-
-```
-
-
-***1. Develop a forecast for the mean NDVI for the last 10 months, assuming that the rainfall is known. Include a plot of the forecast timeseries with the mean (i.e. the mean of the mean NDVI) and 95% credible intervals for the mean as well as the observed data***
+<hr style="border-width:4px">
 
 ***2. How does the SD of the predicted mean change as we forecast forward in time? Does uncertainty become larger or smaller or stay the same?***
+
+```{r, include = TRUE, fig.width = 7}
+
+SDP <- apply(PredOut, 2, sd)
+PredSDdf <- as.data.frame(matrix(ncol = 2, nrow = 10)) %>%
+  mutate(X1 = full_ts$date[(FullTsLength-9):FullTsLength],
+         X2 = SDP) %>%
+  rename(Month = X1,
+         SD = X2)
+
+ggplot(PredSDdf, aes(x = Month, y = SD)) +
+  geom_line() +
+  scale_x_date(breaks = "2 months",
+               date_labels = "%y %b") +
+  theme_bw() +
+  labs(y = "SD of NDVI predicted mean")
+
+```
+
 
 ***3. Why is it important to account for covariance in parameter error? Do you think not including covariance would increase or decrease our predicted uncertainty in this example?***
