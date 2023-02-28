@@ -1,0 +1,62 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Challenge 1 - KAL models!
+author: "Seth Romero & Kelly Loria"
+date: "2023-02-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**EF Challenge 1**
+https://bobshriver.github.io/UNR-EcoForecast/labs/challenge1.html
+
+**Goal:**
+
+1.Fit whatever kind of model you want, using any method you want,with the 2013 training data. You CANNOT use covariates from any other source.
+
+2.Generate a forecast for June 15 to October 15, 2014 (using the covariates for those days). Since we are hindcasting, the covariates are known.
+
+
+```{r, include = FALSE}
+options(width = 200)
+knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
+```
+
+```{r, results = "hide"}
+library(rstan)
+library(shinystan)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(patchwork)
+library(kableExtra)
+library(PerformanceAnalytics)
+
+# Kelly's path while working...
+setwd("~/Documents/UNR/EcoForecasting/CourseResources/EcologicalForecasting/")
+cov_df = read.csv('./data/WeatherData.csv', skip = 3)
+head(cov_df)
+cov_df$Date<-as.Date(cov_df$Date, format='%m/%d/%y')
+
+data = read.csv("./data/2013_data.csv")
+data$Date<-as.Date(data$Date, format='%m/%d/%y')
+```
+
+
+```{r}
+# covariates
+cov_dfc <- cov_df[,c(6:23)]
+# optional correlation plot to check out covariates and colinearity:
+chart.Correlation(cov_dfc, histogram=TRUE, pch=19)
+# really zero inflated precip 
+# (?) choose between min, mean, max vaules 
+```
+```{r}
+newdf<- left_join(data, cov_df, by=c("Date" = "Date"))
+```
+
