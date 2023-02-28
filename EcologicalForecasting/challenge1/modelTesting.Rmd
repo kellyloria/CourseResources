@@ -11,7 +11,7 @@ Just testing to see if this shows up...
 
 ```{r, include = FALSE}
 options(width = 200)
-knitr::opts_chunk$set(include = FALSE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
+knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
 ```
 
 ```{r}
@@ -22,6 +22,73 @@ library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(patchwork)
+library(kableExtra)
 
-setwd("../assignments/")
+# Seth's path while working...
+setwd("~/Documents/GitHub/CourseResources/EcologicalForecasting/challenge1/")
+
+# Kelly's path while working...
+# setwd("")
 ```
+
+```{r}
+full_ts <- read.csv("../data/portal_timeseries.csv") %>%
+  mutate(date = mdy(date)) %>%
+  arrange(date) %>%
+  mutate(i = seq(1, length(.$NDVI)), 
+         date_intrvl = time_length((date - lag(date, n = 1)), unit = "days"))
+
+obs_ts <- full_ts %>% 
+  mutate(prev_ndvi = lag(NDVI, n = 1),
+         prev_rain = lag(rain, n = 1)) %>%
+  filter(i <= (max(i) - 10)) %>%
+  na.omit()
+
+```
+
+Example of a stan chunk. `output.var` is used to create the `stan` object that you can then reference in R chunks.
+
+```{stan, output.var = "stan1"}
+data {
+  int<lower=0> N;
+  vector[N] y;
+  vector[N] x1;
+  vector[N] x2;
+}
+
+parameters {
+  real b0;
+  real b1;
+  real b2;
+  real<lower=0> sigma;
+}
+
+model {
+  y ~ normal(b0 + b1*x1 + b2*x2, sigma);
+}
+```
+
+Note reference to `stan1` below...
+<br>
+Also have to use `sampling()` in this case as opposed to `stan()` (effectively the same, just uses a model object that is pre-compiled as opposed to a .stan file that needs compiling). 
+
+```{r}
+ndviData <- list(N = dim(obs_ts)[1], 
+                 y = obs_ts$NDVI, 
+                 x1 = obs_ts$prev_ndvi, 
+                 x2 = obs_ts$prev_rain)
+
+M1stan <- sampling(stan1,
+                   data = ndviData,
+                   chains = 3,
+                   iter = 2000,
+                   warmup = 1000)
+
+parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
+
+```
+
+
+This works...
+<br>
+(Use `results = "hide"` to not show all the MCMC stuff)
