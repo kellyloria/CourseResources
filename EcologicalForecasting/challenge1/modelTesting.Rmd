@@ -1,0 +1,27 @@
+---
+title:  |
+  | Ecological Forecasting
+  | Challenge 1!
+author: "Seth Romero & Kelly Loria"
+date: "2023-02-20"
+output: html_document
+---
+
+Just testing to see if this shows up...
+
+```{r, include = FALSE}
+options(width = 200)
+knitr::opts_chunk$set(include = FALSE, message = FALSE, warning = FALSE, fig.height = 4, fig.width = 8)
+```
+
+```{r}
+library(rstan)
+library(shinystan)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(patchwork)
+
+setwd("../assignments/")
+```
