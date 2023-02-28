@@ -46,6 +46,7 @@ obs_ts <- full_ts %>%
   na.omit()
 
 ```
+
 ```{stan, output.var = "stan1"}
 data {
   int<lower=0> N;
