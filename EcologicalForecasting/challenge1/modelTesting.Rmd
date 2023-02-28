@@ -91,4 +91,4 @@ parsM1 <- as.data.frame(rstan::extract(M1stan, c("b0", "b1", "b2", "sigma")))
 
 This works...
 <br>
-(Use `results = "hide"` to not show all the MCMC stuff)
+(Use `results = "hide"` in chunk header to not show all the MCMC stuff)
