@@ -167,7 +167,7 @@ Upper<- apply(PredOut1, 2, quantile, prob= .975) # CI using quantile (missing 2.
 Lower <- apply(PredOut1, 2, quantile, prob= .025)
 sd<- apply(PredOut1, 2, sd)
 
-plot(meanP, type='l', ylim=c(0,0.4), ylab=c("mean parameter est."), xlab=c("month no."))
+plot(meanP,  type='l', ylim=c(0,0.4), ylab=c("mean parameter est."), xlab=c("month no."))
 lines(Upper, lty=2, col="goldenrod")
 lines(Lower, lty=2, col="goldenrod")
 points(obs_ts$X11C, col="darkgreen") 
